@@ -1,4 +1,44 @@
 name: "main"
+instances {
+  id: "knight"
+  prototype: "/pieces/knight.go"
+  position {
+    x: 32.0
+    y: 32.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale3 {
+    x: 5.0
+    y: 5.0
+    z: 5.0
+  }
+}
+instances {
+  id: "selector"
+  prototype: "/main/selector.go"
+  position {
+    x: -709.0
+    y: -166.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale3 {
+    x: 0.2
+    y: 0.2
+    z: 0.05
+  }
+}
 scale_along_z: 0
 embedded_instances {
   id: "cam"
@@ -32,6 +72,24 @@ embedded_instances {
   "    w: 1.0\n"
   "  }\n"
   "}\n"
+  "embedded_components {\n"
+  "  id: \"spawn_knight\"\n"
+  "  type: \"factory\"\n"
+  "  data: \"prototype: \\\"/pieces/knight.go\\\"\\n"
+  "load_dynamically: false\\n"
+  "\"\n"
+  "  position {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "    w: 1.0\n"
+  "  }\n"
+  "}\n"
   ""
   position {
     x: 0.0
@@ -48,40 +106,5 @@ embedded_instances {
     x: 1.0
     y: 1.0
     z: 1.0
-  }
-}
-embedded_instances {
-  id: "knight"
-  data: "components {\n"
-  "  id: \"knight\"\n"
-  "  component: \"/assets/graphics/knight.model\"\n"
-  "  position {\n"
-  "    x: 0.0\n"
-  "    y: 0.0\n"
-  "    z: 50.0\n"
-  "  }\n"
-  "  rotation {\n"
-  "    x: 0.0\n"
-  "    y: 0.0\n"
-  "    z: 0.0\n"
-  "    w: 1.0\n"
-  "  }\n"
-  "}\n"
-  ""
-  position {
-    x: 32.0
-    y: 32.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
-  }
-  scale3 {
-    x: 5.0
-    y: 5.0
-    z: 5.0
   }
 }

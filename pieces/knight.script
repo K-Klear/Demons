@@ -1,0 +1,11 @@
+go.property("facing", 0)
+go.property("pos_x", 0)
+go.property("pos_y", 0)
+
+function init(self)
+	
+end
+
+function on_message(self, message_id, message, sender)
+	
+end

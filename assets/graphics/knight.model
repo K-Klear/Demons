@@ -1,7 +1,7 @@
 mesh: "/assets/graphics/knight.dae"
 material: "/main/model.material"
 textures: "/assets/graphics/knight.png"
-skeleton: ""
+skeleton: "/assets/graphics/knight.dae"
 animations: "/assets/graphics/knight.dae"
 default_animation: ""
 name: "unnamed"

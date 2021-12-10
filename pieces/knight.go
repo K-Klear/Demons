@@ -14,7 +14,7 @@ components {
   }
 }
 components {
-  id: "knight"
+  id: "model"
   component: "/assets/graphics/knight.model"
   position {
     x: 0.0

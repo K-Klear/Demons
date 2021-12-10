@@ -1,25 +1,5 @@
 name: "main"
 instances {
-  id: "knight"
-  prototype: "/pieces/knight.go"
-  position {
-    x: 32.0
-    y: 32.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
-  }
-  scale3 {
-    x: 5.0
-    y: 5.0
-    z: 5.0
-  }
-}
-instances {
   id: "selector"
   prototype: "/main/selector.go"
   position {

@@ -3,6 +3,8 @@ local projection = vmath.matrix4()
 local window_width, window_height = window.get_size()
 local GRID_SIZE = 64
 local tilemap_width, tilemap_height, tilemap_low_x, tilemap_low_y
+local GRID = {}
+local selected_piece
 
 local function window_callback(self, event, data)
 	if event == window.WINDOW_EVENT_FOCUS_LOST then
@@ -75,6 +77,10 @@ local function set_proj(fov)
 	projection = vmath.matrix4_perspective(fov, window_width / window_height, 0.1, 2024)
 end
 
+local function spawn_knight(x, y)
+	GRID[x][y].piece = factory.create("#spawn_knight", grid_to_pos(x, y), nil, {pos_x = x, pos_y = y}, vmath.vector3(5))
+end
+
 function init(self)
 	msg.post("@render:", hash("use_camera_projection"))
 	msg.post(".", hash("acquire_input_focus"))
@@ -82,6 +88,15 @@ function init(self)
 	set_proj(math.pi / 6)
 	window.set_listener(window_callback)
 	tilemap_low_x, tilemap_low_y, tilemap_width, tilemap_height = tilemap.get_bounds("#ground")
+	for x = tilemap_low_x, tilemap_low_x + tilemap_width - 1 do
+		GRID[x] = GRID[x] or {}
+		for y = tilemap_low_y, tilemap_low_y + tilemap_height - 1 do
+			GRID[x][y] = GRID[x][y] or {}
+			if tilemap.get_tile("#ground", "ground", x, y) == 2 then
+				spawn_knight(x, y)
+			end
+		end
+	end
 end
 
 function on_input(self, action_id, action)
@@ -96,8 +111,20 @@ function on_input(self, action_id, action)
 		end
 	end
 	if action_id == hash("touch") and action.pressed then
-		--[[
 		local pos = screen_to_world_plane(action.x, action.y, vmath.vector3(0, 0, 1), vmath.vector3(0))
+		local x, y = pos_to_grid(pos)
+		if GRID[x][y].piece then
+			if selected_piece and not (selected_piece == GRID[x][y].piece) then
+				msg.post(selected_piece, hash("unselect"))
+			end
+			selected_piece = GRID[x][y].piece
+			msg.post(selected_piece, hash("select"))
+		elseif selected_piece then
+			go.animate(selected_piece, "position", go.PLAYBACK_ONCE_FORWARD, grid_to_pos(x, y), go.EASING_INOUTSINE, 1)
+			GRID[x][y].piece = selected_piece
+		end
+		--[[
+		
 		local new_pos = grid_to_pos(pos_to_grid(pos))
 		local old_pos = go.get_world_position("knight")
 		go.animate("knight", "position", go.PLAYBACK_ONCE_FORWARD, new_pos, go.EASING_INOUTSINE, 1)

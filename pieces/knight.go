@@ -1,5 +1,5 @@
 components {
-  id: "kinght"
+  id: "script"
   component: "/pieces/knight.script"
   position {
     x: 0.0

@@ -1,9 +1,10 @@
 go.property("facing", 0)
 go.property("pos_x", 0)
 go.property("pos_y", 0)
+go.property("ap", 4)
 
 function init(self)
-	model.play_anim("#model", "female_mage_v002_die", go.PLAYBACK_LOOP_PINGPONG)
+	--model.play_anim("#model", "female_mage_v002_die", go.PLAYBACK_LOOP_PINGPONG)
 end
 
 function on_message(self, message_id, message, sender)
@@ -11,5 +12,12 @@ function on_message(self, message_id, message, sender)
 		go.set("#model", "tint", vmath.vector4(0, 1, 0, 1))
 	elseif message_id == hash("unselect") then
 		go.set("#model", "tint", vmath.vector4(1))
+	elseif message_id == hash("move") then
+		local prev_x, prev_y = self.pos_x, self.pos_y
+		go.animate(".", "position", go.PLAYBACK_ONCE_FORWARD, message.pos, go.EASING_INOUTSINE, 0.5, 0, function()
+			msg.post(sender, hash("piece_moved"), {prev_x = prev_x, prev_y = prev_y, x = message.x, y = message.y})
+		end)
+		self.pos_x = message.x
+		self.pos_y = message.y
 	end
 end

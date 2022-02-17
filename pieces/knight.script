@@ -7,6 +7,25 @@ function init(self)
 	--model.play_anim("#model", "female_mage_v002_die", go.PLAYBACK_LOOP_PINGPONG)
 end
 
+local function rotate(self, x, y)
+	if not (x == self.pos_x and y == self.pos_y) then
+		local quarter_pi = math.pi / 4
+		local angle = math.atan2(y - self.pos_y, x - self.pos_x) + quarter_pi * 2
+		angle = math.floor(angle / quarter_pi)
+		angle = math.deg(angle * quarter_pi)
+		local current_angle = go.get(".", "euler.z")
+		if math.abs(angle - current_angle) > 180 then
+			if angle > current_angle then
+				angle = angle - 360
+			else
+				angle = angle + 360
+			end
+		end
+		--go.set(".", "euler.z", angle)
+		go.animate(".", "euler.z", go.PLAYBACK_ONCE_FORWARD, angle, go.EASING_INOUTSINE, 0.5)
+	end
+end
+
 function on_message(self, message_id, message, sender)
 	if message_id == hash("select") then
 		go.set("#model", "tint", vmath.vector4(0, 1, 0, 1))
@@ -17,7 +36,12 @@ function on_message(self, message_id, message, sender)
 		go.animate(".", "position", go.PLAYBACK_ONCE_FORWARD, message.pos, go.EASING_INOUTSINE, 0.5, 0, function()
 			msg.post(sender, hash("piece_moved"), {prev_x = prev_x, prev_y = prev_y, x = message.x, y = message.y})
 		end)
+		rotate(self, message.x, message.y)
 		self.pos_x = message.x
 		self.pos_y = message.y
+		self.ap = message.ap
+		if self.ap == 0 then self.ap = 4 end
+	elseif message_id == hash("rotate") then
+		rotate(self, message.x, message.y)
 	end
 end

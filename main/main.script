@@ -174,7 +174,7 @@ local function show_movement_markers(grid_id)
 		local active_temp = {}
 		for k, v in ipairs(active) do
 			for key, val in ipairs(get_neighbouring_tiles(v)) do
-				if is_tile_passable(current_turn, val) then
+				if not forbidden[val] and is_tile_passable(current_turn, val) then
 					local x, y = grid_to_coords(val)
 					tilemap.set_tile("#ground", "movement", x, y, 5 + turn)
 					movement_markers[val] = turn

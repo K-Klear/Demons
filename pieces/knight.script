@@ -35,11 +35,9 @@ function on_message(self, message_id, message, sender)
 		go.animate(".", "position", go.PLAYBACK_ONCE_FORWARD, message.pos, go.EASING_INOUTSINE, 0.5, 0, function()
 			msg.post(sender, hash("piece_moved"))
 		end)
-		rotate(self, message.x, message.y)
-		self.pos_x = message.x
-		self.pos_y = message.y
-		self.ap = message.ap
-		if self.ap == 0 then self.ap = 4 end
+		--rotate(self, message.x, message.y)
+		--self.pos_x = message.x
+		--self.pos_y = message.y
 	elseif message_id == hash("rotate") then
 		rotate(self, message.x, message.y)
 	end

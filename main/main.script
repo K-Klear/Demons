@@ -2,15 +2,16 @@ local view = vmath.matrix4()
 local projection = vmath.matrix4()
 local window_width, window_height = window.get_size()
 local GRID_SIZE = 64
+local TILE_COUNT
 local tilemap_width, tilemap_height, tilemap_low_x, tilemap_low_y
-local GRID = {}
+local GRID = {[0] = {}}
 local selected_piece
 local controls_enabled = true
 local movement_markers = {}
 
 local PIECES = {}
-local ORDERS = {}
-local current_turn = 1
+local ORDERS = {[0] = {}}
+local current_turn = 0
 local pieces_to_move = 0
 
 local function window_callback(self, event, data)
@@ -67,11 +68,22 @@ local function screen_to_world_plane(x, y, planeNormal, pointOnPlane)
 	return vmath.lerp(numer / denom, np, fp)
 end
 
-local function pos_to_grid(pos)
-	return math.ceil(pos.x / GRID_SIZE), math.ceil(pos.y / GRID_SIZE)
+local function coords_to_grid(x, y)
+	return (y - tilemap_low_y) * tilemap_width + (x - tilemap_low_x + 1)
 end
 
-local function grid_to_pos(x, y)
+local function pos_to_grid(pos)
+	return coords_to_grid(math.ceil(pos.x / GRID_SIZE), math.ceil(pos.y / GRID_SIZE))
+end
+
+local function grid_to_coords(grid_id)
+	local y = math.ceil(grid_id / tilemap_width) - 1
+	local x = grid_id - (y * tilemap_width) - 1
+	return x + tilemap_low_x, y + tilemap_low_y
+end
+
+local function grid_to_pos(grid_id)
+	local x, y = grid_to_coords(grid_id)
 	return vmath.vector3(x * GRID_SIZE - (GRID_SIZE / 2), y * GRID_SIZE - (GRID_SIZE / 2), 0)
 end
 
@@ -84,31 +96,154 @@ local function set_proj(fov)
 	projection = vmath.matrix4_perspective(fov, window_width / window_height, 0.1, 2024)
 end
 
-local function spawn_knight(x, y)
-	local new_piece = msg.url(nil, factory.create("#spawn_knight", grid_to_pos(x, y), nil, {pos_x = x, pos_y = y}, vmath.vector3(5)), "script")
+local function spawn_knight(grid_id)
+	local new_piece = msg.url(nil, factory.create("#spawn_knight", grid_to_pos(grid_id), nil, nil, vmath.vector3(5)), "script")
 	local tab = {
 		url = new_piece,
 		owner = 1,
 		type = hash("knight"),
-		orders = {[current_turn] = {action = hash("spawn"), x = x, y = y}},
-		action_points = 1
+		orders = {},
+		location = grid_id
 	}
 	table.insert(PIECES, tab)
+	return tab
 end
 
-local function get_tile_contents(x, y)
-	if not GRID[x] or not GRID[x][y] then
-		return
-	else
-		for key, val in ipairs(PIECES) do
-			current_order = val.orders[current_turn]
-			if current_order and current_order.x == x and current_order.y == y then
-				return hash("piece"), key
+local function setup_new_turn(turn_number)
+	GRID[turn_number] = {}
+	for grid_id = 1, TILE_COUNT do
+		local props = {}
+		props.terrain = tilemap.get_tile("#ground", "ground", grid_to_coords(grid_id))
+		table.insert(GRID[turn_number], props)
+	end
+end
+
+local function is_tile_passable(turn, grid_id)
+	if not GRID[turn] then
+		setup_new_turn(turn)
+	end
+	if GRID[turn][grid_id].contents or GRID[turn][grid_id].terrain == 4 then
+		return false
+	end
+	if ORDERS[turn] then
+		for key, val in ipairs(ORDERS[turn]) do
+			if val and val.grid_id == grid_id then
+				return false
 			end
 		end
-		local terrain_types = {true, true, true, false}
-		return hash("terrain"), terrain_types[tilemap.get_tile("#ground", "ground", x, y)]
 	end
+	return true
+end
+
+local function add_order(turn, target, order, actor)
+	local new_order = {
+		grid_id = target,
+		order = order,
+		actor = actor
+	}
+	ORDERS[turn] = ORDERS[turn] or {}
+	if actor then
+		for key, val in ipairs(ORDERS[turn]) do
+			if val.actor == actor then
+				table.remove(ORDERS[turn], key)
+				break
+			end
+		end
+		actor.orders[turn] = new_order
+	end
+	table.insert(ORDERS[turn], new_order)
+end
+
+local function remove_movement_markers()
+	for key, val in pairs(movement_markers) do
+		local x, y = grid_to_coords(key)
+		tilemap.set_tile("#ground", "movement", x, y, 0)
+	end
+end
+
+local function get_neighbouring_tiles(grid_id)
+	return {grid_id + tilemap_width, grid_id - tilemap_width, grid_id + 1, grid_id - 1}
+end
+
+local function show_movement_markers(grid_id)
+	remove_movement_markers()
+	local active = {grid_id}
+	local forbidden = {[grid_id] = true}
+
+	for turn = 1, 3 do
+		local active_temp = {}
+		for k, v in ipairs(active) do
+			for key, val in ipairs(get_neighbouring_tiles(v)) do
+				if is_tile_passable(current_turn, val) then
+					local x, y = grid_to_coords(val)
+					tilemap.set_tile("#ground", "movement", x, y, 5 + turn)
+					movement_markers[val] = turn
+					forbidden[val] = true
+					table.insert(active_temp, val)
+				end
+			end
+		end
+		active = {}
+		for key, val in ipairs(active_temp) do
+			table.insert(active, val)
+		end
+		active_temp = {}
+	end
+
+	--[[
+	local turn = 1
+	for key, val in ipairs(get_neighbouring_tiles(grid_id)) do
+		if is_tile_passable(current_turn, val) then
+			local x, y = grid_to_coords(val)
+			tilemap.set_tile("#ground", "movement", x, y, 5 + turn)
+			movement_markers[val] = turn
+			forbidden[val] = true
+		end
+	end
+	--]]
+end
+
+local function unselect_piece()
+	if selected_piece then
+		msg.post(selected_piece.url, hash("unselect"))
+		selected_piece = nil
+		remove_movement_markers()
+	end
+end
+
+local function select_piece(piece)
+	unselect_piece()
+	selected_piece = piece
+	msg.post(selected_piece.url, hash("select"))
+	show_movement_markers(selected_piece.location)
+end
+
+local function end_turn()
+	current_turn = current_turn + 1
+	unselect_piece()
+	if not GRID[current_turn] then
+		setup_new_turn(current_turn)
+	end
+	for key, val in ipairs(ORDERS[current_turn - 1]) do
+		if val.order == hash("spawn_knight") then
+			GRID[current_turn][val.grid_id].contents = spawn_knight(val.grid_id)
+		elseif val.order == hash("move_piece") then
+			msg.post(val.actor.url, hash("move"), {pos = grid_to_pos(val.grid_id)})
+			val.actor.location = val.grid_id
+			GRID[current_turn][val.grid_id].contents = val.actor
+			controls_enabled = false
+			pieces_to_move = pieces_to_move + 1
+		end
+	end
+end
+
+local function check_missing_orders()
+	for key, val in ipairs(PIECES) do
+		if not val.orders[current_turn] then
+			return false
+		end
+	end
+	return true
 end
 
 function init(self)
@@ -118,72 +253,28 @@ function init(self)
 	set_proj(math.pi / 6)
 	window.set_listener(window_callback)
 	tilemap_low_x, tilemap_low_y, tilemap_width, tilemap_height = tilemap.get_bounds("#ground")
-	for x = tilemap_low_x, tilemap_low_x + tilemap_width - 1 do
-		GRID[x] = GRID[x] or {}
-		for y = tilemap_low_y, tilemap_low_y + tilemap_height - 1 do
-			GRID[x][y] = GRID[x][y] or {}
+	GRID = {[0] = {}}
+	local grid_id = 0
+	for y = tilemap_low_y, tilemap_low_y + tilemap_height - 1 do
+		for x = tilemap_low_x, tilemap_low_x + tilemap_width - 1 do
+			grid_id = grid_id + 1
 			if tilemap.get_tile("#ground", "ground", x, y) == 2 then
-				spawn_knight(x, y)
 				tilemap.set_tile("#ground", "ground", x, y, 1)
+				add_order(0, grid_id, hash("spawn_knight"))
 			end
 		end
 	end
-end
-
-local function remove_movement_markers()
-	for key, val in ipairs(movement_markers) do
-		tilemap.set_tile("#ground", "movement", val.x, val.y, 0)
-		GRID[val.x][val.y].marker = nil
-	end
-end
-
-local function show_movement_markers(x, y)
-	local function set_marker(marker_x, marker_y, ap)
-		local tile_type, tile_content = get_tile_contents(marker_x, marker_y)
-		if tile_type == hash("terrain") and tile_content == 1 and not GRID[marker_x][marker_y].marker then
-			tilemap.set_tile("#ground", "movement", marker_x, marker_y, ap + 5)
-			table.insert(movement_markers, {x = marker_x, y = marker_y})
-			GRID[marker_x][marker_y].marker = ap
-		end
-	end
-	local ap = go.get(selected_piece, "ap")
-	if ap > 0 then
-		GRID[x][y].marker = ap
-		table.insert(movement_markers, {x = x, y = y})
-		for moves = ap - 1, 0, -1 do
-			for key, val in ipairs(movement_markers) do
-				if GRID[val.x][val.y].marker == moves + 1 then
-					set_marker(val.x + 1, val.y, moves)
-					set_marker(val.x - 1, val.y, moves)
-					set_marker(val.x, val.y + 1, moves)
-					set_marker(val.x, val.y - 1, moves)
-				end
-			end
-		end
-	end
-end
-
-local function check_end_of_turn()
-	for key, val in ipairs(PIECES) do
-		if not val.orders[current_turn + 1] then
-			return
-		end
-	end
-	controls_enabled = false
-	for key, val in ipairs(PIECES) do
-		local next_order = val.orders[current_turn + 1]
-		msg.post(val.url, next_order.action, {x = next_order.x, y = next_order.y, pos = grid_to_pos(next_order.x, next_order.y), ap = 1})
-		pieces_to_move = pieces_to_move + 1
-	end
+	TILE_COUNT = grid_id
+	end_turn()
 end
 
 function on_input(self, action_id, action)
 	if not action_id then
 		local pos = screen_to_world_plane(action.x, action.y, vmath.vector3(0, 0, 1), vmath.vector3(0))
-		local x, y = pos_to_grid(pos)
-		if get_tile_contents(x, y) then
+		local grid_id = pos_to_grid(pos)
+		if true or GRID[current_turn][grid_id].contents then
 			msg.post("selector", hash("enable"))
-			go.set_position(grid_to_pos(x, y), "selector")
+			go.set_position(grid_to_pos(grid_id), "selector")
 		else
 			msg.post("selector", hash("disable"))
 		end
@@ -191,23 +282,17 @@ function on_input(self, action_id, action)
 	if controls_enabled then
 		if action_id == hash("mouse_1") and action.pressed then
 			local pos = screen_to_world_plane(action.x, action.y, vmath.vector3(0, 0, 1), vmath.vector3(0))
-			local x, y = pos_to_grid(pos)
-
-			local tile_content, tile_content_id = get_tile_contents(x, y)
-			if tile_content == hash("piece") then
-				if selected_piece and not (selected_piece == tile_content_id) then
-					msg.post(PIECES[selected_piece].url, hash("unselect"))
-					--remove_movement_markers()
+			local grid_id = pos_to_grid(pos)
+			local tile_content = GRID[current_turn][grid_id].contents
+			if tile_content then
+				select_piece(tile_content)
+			elseif is_tile_passable(current_turn, grid_id) then
+				add_order(current_turn, grid_id, hash("move_piece"), selected_piece)
+				if check_missing_orders() then
+					end_turn()
+				else
+					unselect_piece()
 				end
-				selected_piece = tile_content_id
-				msg.post(PIECES[selected_piece].url, hash("select"))
-				--show_movement_markers(x, y)
-			elseif tile_content == hash("terrain") and tile_content_id and selected_piece and not PIECES[selected_piece].orders[current_turn + 1] then
-				PIECES[selected_piece].orders[current_turn + 1] = {action = hash("move"), x = x, y = y}
-				check_end_of_turn()
-				
-				--controls_enabled = false
-				--remove_movement_markers()
 			end
 			--[[
 		elseif action_id == hash("mouse_2") and selected_piece then
@@ -224,8 +309,6 @@ function on_message(self, message_id, message, sender)
 		pieces_to_move = pieces_to_move - 1
 		if pieces_to_move < 1 then
 			controls_enabled = true
-			current_turn = current_turn + 1
-			check_end_of_turn()
 		end
 	end
 end

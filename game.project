@@ -11,3 +11,7 @@ width = 960
 [android]
 input_method = HiddenInputField
 
+[project]
+title = Demons
+version = 0.0
+
